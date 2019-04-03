@@ -1,8 +1,11 @@
 #include "MapFile.h"
 #include "LoadFont.h"
+#include "ToUnicode.h"
 #include "SDL.h"
+#include <memory>
 #include <iostream>
 #include <string.h>
+#include <locale.h>
 
 const char* DEFAULT_TITLE = "sdlmessage";
 const int DEFAULT_WINDOW_WIDTH = 1024;
@@ -16,7 +19,15 @@ int main(int argc, const char** argv)
 		return 1;
 	}
 
-	const char* messageText = argv[1];
+	// set locale according to environment variables
+	// (important otherwise the default is C and we don't have Unicode!)
+	setlocale(LC_ALL, "");
+
+	std::vector<wchar_t> messageText;
+	if (!StringToUnicode(argv[1], messageText)) {
+		std::cerr << "Could not convert input string to unicode: " << SDL_GetError() << std::endl;
+		return 1;
+	}
 
 	if (0 != SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_EVENTS)) {
 		std::cerr << "Could not initialize SDL: " << SDL_GetError() << std::endl;
@@ -40,13 +51,16 @@ int main(int argc, const char** argv)
 		return 127;
 	}
 
-	MappedFile fontFile(FONT_FILE_NAME);
-	if (!fontFile.Ok()) {
-		std::cerr << "Could not map font file: " << FONT_FILE_NAME << ": " << SDL_GetError() << std::endl;
-		return 127;
+	std::unique_ptr<MappedFile> fontFile{ new MappedFile("/usr/share/fonts/TTF/DejaVuSans.ttf") };
+	if (!fontFile->Ok()) {
+		fontFile.reset(new MappedFile("/usr/share/fonts/dejavu/DejaVuSans.ttf"));
+		if (!fontFile->Ok()) {
+			std::cerr << "Could not open font file: " << SDL_GetError() << std::endl;
+			return 127;
+		}
 	}
 
-	Font font(fontFile, 32.0f);
+	Font font(*fontFile, 32.0f);
 	if (!font.Ok()) {
 		std::cerr << "Could not load font: " << SDL_GetError() << std::endl;
 		return 127;
@@ -67,26 +81,27 @@ int main(int argc, const char** argv)
 		static_cast<uint8_t*>(messageSurface->pixels)[i] = (i & 0xff);
 	}
 
-	SDL_BlitSurface(font.GetSurface(), SDL_Rect{0, 0, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT}, messageSurface, SDL_Rect{0, 0, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT});
-
-/*
 	int x = 0;
-	size_t messageLength = strlen(messageText);
-	for (int i = 0; i < messageLength; i++) {
-		SDL_Rect glyphRect = font.GetGlyphRect(messageText[i]);
-		SDL_Rect destRect;
-		destRect.x = x;
-		destRect.y = 127;
-		destRect.w = glyphRect.w;
-		destRect.h = glyphRect.h;
-		if (0 != SDL_BlitSurface(font.GetSurface(), &glyphRect, messageSurface, &destRect)) {
-			std::cerr << "Could not blit glyph: " << SDL_GetError() << std::endl;
-			break;
+	for (int i = 0; i < messageText.size(); i++) {
+		stbtt_packedchar glyphGeometry;
+		if (font.GetGlyphGeometry(int(messageText[i]), glyphGeometry)) {
+			SDL_Rect glyphRect;
+			glyphRect.x = glyphGeometry.x0;
+			glyphRect.y = glyphGeometry.y0;
+			glyphRect.w = glyphGeometry.x1 - glyphGeometry.x0;
+			glyphRect.h = glyphGeometry.y1 - glyphGeometry.y0;
+			SDL_Rect destRect;
+			destRect.x = x + glyphGeometry.xoff;
+			destRect.y = 127 + glyphGeometry.yoff;
+			destRect.w = glyphGeometry.x1 - glyphGeometry.x0;
+			destRect.h = glyphGeometry.y1 - glyphGeometry.y0;
+			if (0 != SDL_BlitSurface(font.GetSurface(), &glyphRect, messageSurface, &destRect)) {
+				std::cerr << "Could not blit glyph: " << SDL_GetError() << std::endl;
+				break;
+			}
+			x += glyphGeometry.xadvance;
 		}
-		x += glyphRect.w;
-		std::cout << "glyph '" << messageText[i] << "', width " << glyphRect.w << ", current pos " << x << std::endl;
 	}
-*/
 
 	SDL_Texture* messageTexture = SDL_CreateTextureFromSurface(renderer, messageSurface);
 	if (!messageTexture) {

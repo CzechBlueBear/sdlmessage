@@ -47,13 +47,8 @@ Font::Font(const MappedFile &fontFile, float fontSize)
 		packedChars)
 	) {
 		SDL_SetError("stbtt_PackFontRange() failed");
+		stbtt_PackEnd(&packContext);
 		return;
-	}
-
-	for (int i = 32; i < NUMBER_OF_CHARS; i++) {
-		std::cout << "glyph #" << i << "'" << char(i)
-			<< "' placement: [" << packedChars[i].x0 << " " << packedChars[i].y0
-			<< " " << packedChars[i].x1 << " " << packedChars[i].y1 << "]" << std::endl;
 	}
 
 	stbtt_PackEnd(&packContext);
@@ -70,15 +65,21 @@ Font::~Font()
 	}
 }
 
-SDL_Rect Font::GetGlyphRect(int charCode) const
+bool Font::GetGlyphRect(int charCode, SDL_Rect& result) const
 {
-	SDL_Rect result = { 0 };
-	if (charCode > NUMBER_OF_CHARS) return result;
+	if (charCode > NUMBER_OF_CHARS) return false;
 
 	const stbtt_packedchar& packedChar = packedChars[charCode];
 	result.x = packedChar.x0;
 	result.y = packedChar.y0;
 	result.w = packedChar.x1 - packedChar.x0;
-	result.y = packedChar.y1 - packedChar.y0;
-	return result;
+	result.h = packedChar.y1 - packedChar.y0;
+	return true;
+}
+
+bool Font::GetGlyphGeometry(int charCode, stbtt_packedchar &glyphGeometry) const
+{
+	if (charCode > NUMBER_OF_CHARS) return false;
+	glyphGeometry = packedChars[charCode];
+	return true;
 }

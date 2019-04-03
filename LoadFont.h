@@ -15,7 +15,8 @@ public:
 	Font(const MappedFile &fontFile, float fontSize);
 	~Font();
 	bool Ok() const { return ok; }
-	SDL_Rect GetGlyphRect(int charCode) const;
+	bool GetGlyphRect(int charCode, SDL_Rect& glyphRect) const;
+	bool GetGlyphGeometry(int charCode, stbtt_packedchar &glyphGeometry) const;
 	SDL_Surface* GetSurface() { return fontSurface; }
 
 private:
