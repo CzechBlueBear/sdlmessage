@@ -81,7 +81,11 @@ int main(int argc, const char** argv)
 		static_cast<uint8_t*>(messageSurface->pixels)[i] = (i & 0xff);
 	}
 
-	int x = 0;
+	SDL_Rect textRect = font.ComputeTextSize(messageText);
+	int startY = DEFAULT_WINDOW_HEIGHT/2 - textRect.h/2;
+	int startX = DEFAULT_WINDOW_WIDTH/2 - textRect.w/2;
+
+	int x = startX;
 	for (int i = 0; i < messageText.size(); i++) {
 		stbtt_packedchar glyphGeometry;
 		if (font.GetGlyphGeometry(int(messageText[i]), glyphGeometry)) {
@@ -92,7 +96,7 @@ int main(int argc, const char** argv)
 			glyphRect.h = glyphGeometry.y1 - glyphGeometry.y0;
 			SDL_Rect destRect;
 			destRect.x = x + glyphGeometry.xoff;
-			destRect.y = 127 + glyphGeometry.yoff;
+			destRect.y = startY + glyphGeometry.yoff;
 			destRect.w = glyphGeometry.x1 - glyphGeometry.x0;
 			destRect.h = glyphGeometry.y1 - glyphGeometry.y0;
 			if (0 != SDL_BlitSurface(font.GetSurface(), &glyphRect, messageSurface, &destRect)) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "SDL.h"
 #include "MapFile.h"
 
@@ -17,7 +19,14 @@ public:
 	bool Ok() const { return ok; }
 	bool GetGlyphRect(int charCode, SDL_Rect& glyphRect) const;
 	bool GetGlyphGeometry(int charCode, stbtt_packedchar &glyphGeometry) const;
+
+	/**
+	 * Returns a pointer to the internal surface that holds the glyphs.
+	 * Use GetGlyphGeometry() to find out coordinates of a glyph image in this surface.
+	 */
 	SDL_Surface* GetSurface() { return fontSurface; }
+
+	SDL_Rect ComputeTextSize(const std::vector<wchar_t> &text);
 
 private:
 
