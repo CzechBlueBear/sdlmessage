@@ -3,6 +3,7 @@
 #include "ToUnicode.h"
 #include "SDL.h"
 #include <memory>
+#include <array>
 #include <iostream>
 #include <string.h>
 #include <locale.h>
@@ -10,7 +11,11 @@
 const char* DEFAULT_TITLE = "sdlmessage";
 const int DEFAULT_WINDOW_WIDTH = 1024;
 const int DEFAULT_WINDOW_HEIGHT = 256;
-const char* FONT_FILE_NAME = "/usr/share/fonts/TTF/DejaVuSans.ttf";
+
+std::array<const char*, 2> FONT_FILE_CANDIDATES = {
+	"/usr/share/fonts/TTF/DejaVuSans.ttf",		// Arch-ism
+	"/usr/share/fonts/dejavu/DejaVuSans.ttf"	// Fedora
+};
 
 int main(int argc, const char** argv)
 {
@@ -51,13 +56,15 @@ int main(int argc, const char** argv)
 		return 127;
 	}
 
-	std::unique_ptr<MappedFile> fontFile{ new MappedFile("/usr/share/fonts/TTF/DejaVuSans.ttf") };
+	// load the font, trying multiple usual locations
+	std::unique_ptr<MappedFile> fontFile;
+	for (auto candidateFile : FONT_FILE_CANDIDATES) {
+		fontFile.reset(new MappedFile(candidateFile));
+		if (fontFile->Ok()) break;
+	}
 	if (!fontFile->Ok()) {
-		fontFile.reset(new MappedFile("/usr/share/fonts/dejavu/DejaVuSans.ttf"));
-		if (!fontFile->Ok()) {
-			std::cerr << "Could not open font file: " << SDL_GetError() << std::endl;
-			return 127;
-		}
+		std::cerr << "Could not open font file: " << SDL_GetError() << std::endl;
+		return 127;
 	}
 
 	Font font(*fontFile, 32.0f);
@@ -75,10 +82,6 @@ int main(int argc, const char** argv)
 	if (!messageSurface) {
 		std::cerr << "Could not create surface: " << SDL_GetError() << std::endl;
 		return 127;
-	}
-
-	for (int i = 0; i < 1024; i++) {
-		static_cast<uint8_t*>(messageSurface->pixels)[i] = (i & 0xff);
 	}
 
 	SDL_Rect textRect = font.ComputeTextSize(messageText);
