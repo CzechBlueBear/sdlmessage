@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <string>
 
 #include "SDL.h"
 #include "MapFile.h"
@@ -26,7 +26,7 @@ public:
 	 */
 	SDL_Surface* GetSurface() { return fontSurface; }
 
-	SDL_Rect ComputeTextSize(const std::vector<wchar_t> &text);
+	SDL_Rect ComputeTextSize(const std::wstring &text);
 
 private:
 

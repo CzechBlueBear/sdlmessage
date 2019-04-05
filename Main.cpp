@@ -6,7 +6,8 @@
 #include <array>
 #include <iostream>
 #include <string.h>
-#include <locale.h>
+#include <locale>
+#include <sstream>
 
 const char* DEFAULT_TITLE = "sdlmessage";
 const int DEFAULT_WINDOW_WIDTH = 1024;
@@ -26,13 +27,19 @@ int main(int argc, const char** argv)
 
 	// set locale according to environment variables
 	// (important otherwise the default is C and we don't have Unicode!)
-	setlocale(LC_ALL, "");
+	std::locale::global(std::locale("en_US.UTF-8")); 	/* in plain C: setlocale(LC_ALL, ""); */
 
-	std::vector<wchar_t> messageText;
-	if (!StringToUnicode(argv[1], messageText)) {
-		std::cerr << "Could not convert input string to unicode: " << SDL_GetError() << std::endl;
-		return 1;
+	// load the message text and convert it from multibyte to Unicode codepoints
+	std::wstring messageText = MultibyteToWideString(argv[1]);
+
+/*
+	{
+		std::wstringstream conv;
+		conv.imbue(std::locale("en_US.UTF-8"));
+		conv << argv[1];
+		messageText = conv.str();
 	}
+*/
 
 	if (0 != SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_EVENTS)) {
 		std::cerr << "Could not initialize SDL: " << SDL_GetError() << std::endl;

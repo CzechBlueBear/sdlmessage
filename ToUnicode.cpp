@@ -1,29 +1,30 @@
 #include "ToUnicode.h"
 #include "SDL.h"
 #include <iostream>
+#include <cwchar>
 
-bool StringToUnicode(const char* text, std::vector<wchar_t> &result)
+std::wstring MultibyteToWideString(const char* source)
 {
-	result.clear();
+	std::wstring result;
 
-	const char* p = text;
+	const char* p = source;
 	size_t messageCharCount = 0;
 
+	// calculate the number of wide characters needed (also checks encoding validity)
 	{
-		mbstate_t mbstate = { 0 };
-		messageCharCount = mbsrtowcs(nullptr, &p, 0, &mbstate);
+		auto mbstate = std::mbstate_t();
+		messageCharCount = std::mbsrtowcs(nullptr, &p, 0, &mbstate);
 		if (messageCharCount == size_t(-1)) {
 			SDL_SetError("Invalid character sequence");
-			return false;
+			return result;
 		}
-	}
+	}	
 
+	result.resize(messageCharCount);
 	{
-		result.resize(messageCharCount);
-		mbstate_t mbstate = { 0 };
-		p = text;
-		mbsrtowcs(result.data(), &p, messageCharCount, &mbstate);
+		auto mbstate = std::mbstate_t();
+		p = source;
+		std::mbsrtowcs(const_cast<wchar_t*>(result.data()), &p, messageCharCount, &mbstate);
 	}
-
-	return true;
+	return result;
 }

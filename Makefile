@@ -1,4 +1,4 @@
-CXX=g++ -c
+CXX=g++ -std=c++2a -c
 CXXFLAGS=-O2 -ggdb -I /usr/include/SDL2 -I thirdparty
 LINK=g++
 LINKFLAGS=-lm -lSDL2
@@ -19,5 +19,5 @@ clean:
 ${EXE}: ${OBJS}
 	${LINK} ${LINKFLAGS} $^ -o ${EXE}
 
-%.o : %.cpp ${HEADERS}
+%.o : %.cpp ${HEADERS} Makefile
 	${CXX} ${CXXFLAGS} $*.cpp -o $*.o

@@ -84,7 +84,7 @@ bool Font::GetGlyphGeometry(int charCode, stbtt_packedchar &glyphGeometry) const
 	return true;
 }
 
-SDL_Rect Font::ComputeTextSize(const std::vector<wchar_t> &text)
+SDL_Rect Font::ComputeTextSize(const std::wstring &text)
 {
 	int x = 0, maxY = 0;
 	for (wchar_t c : text) {
