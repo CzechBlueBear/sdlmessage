@@ -159,30 +159,42 @@ int main(int argc, const char** argv)
 	// the main loop: here we only need to wait for the window to be closed
 	// and re-render our message if needed
 	bool quitRequested = false;
+	bool redrawNeeded = false;
+	bool haveEvent = false;
 	SDL_Event event;
 	while (1) {
 
-		SDL_PollEvent(&event);
-		if (event.type == SDL_QUIT) {	// closing button pressed
-			quitRequested = true;
-		}
-		else if (event.type == SDL_KEYDOWN) {
-			if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+		// wait for any incoming events, then handle the whole batch
+		SDL_WaitEvent(&event);
+		do {
+			if (event.type == SDL_QUIT) {	// closing button pressed
 				quitRequested = true;
 			}
-		}
-		else if (event.type == SDL_MOUSEBUTTONDOWN) {
-			if (option_CloseOnClick) {
-				quitRequested = true;
+			else if (event.type == SDL_KEYDOWN) {
+				if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+					quitRequested = true;
+				}
 			}
-		}
+			else if (event.type == SDL_MOUSEBUTTONDOWN) {
+				if (option_CloseOnClick) {
+					quitRequested = true;
+				}
+			}
+			else if (event.type == SDL_WINDOWEVENT) {
+				if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+					redrawNeeded = true;
+				}
+			}
+		} while (SDL_PollEvent(&event));
 
 		if (quitRequested) break;
 
-		SDL_SetRenderDrawColor(renderer, 0x0f, 0x0f, 0x0f, 0x00);
-		SDL_RenderClear(renderer);
-		SDL_RenderCopy(renderer, messageTexture, NULL, NULL);
-		SDL_RenderPresent(renderer);
+		if (redrawNeeded) {
+			SDL_SetRenderDrawColor(renderer, 0x0f, 0x0f, 0x0f, 0x00);
+			SDL_RenderClear(renderer);
+			SDL_RenderCopy(renderer, messageTexture, NULL, NULL);
+			SDL_RenderPresent(renderer);
+		}
 	}
 
 
