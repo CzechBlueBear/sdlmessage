@@ -2,6 +2,7 @@
 #include "LoadFont.h"
 #include "ToUnicode.h"
 #include "SDL.h"
+#include "SDLWrapper.h"
 #include <memory>
 #include <array>
 #include <iostream>
@@ -18,10 +19,45 @@ std::array<const char*, 2> FONT_FILE_CANDIDATES = {
 	"/usr/share/fonts/dejavu/DejaVuSans.ttf"	// Fedora
 };
 
+void ShowUsage()
+{
+	std::cerr << "sdlmessage [options] message" << std::endl << std::endl;
+	std::cerr << "Shows a short, single-line message in a window and waits for the window to be closed." << std::endl;
+	std::cerr << "Options:" << std::endl;
+	std::cerr << "    --help             Shows this help text (also shown on unrecognized input)" << std::endl;
+	std::cerr << "    --no-border        Show a borderless window (press Esc to dismiss it)" << std::endl;
+	std::cerr << "    --close-on-click   Clicking in the window closes it" << std::endl;
+}
+
 int main(int argc, const char** argv)
 {
-	if (argc < 2) {
-		std::cerr << "Missing argument (message to be shown)" << std::endl;
+	bool option_NoBorder = false;
+	bool option_CloseOnClick = false;
+
+	std::string rawMessage;
+	for (int i = 1; i < argc; i++) {
+		std::string arg(argv[i]);
+		if (arg == "--help") {
+			ShowUsage();
+			return 0;
+		}
+		if (arg == "--no-border") {
+			option_NoBorder = true;
+		}
+		else if (arg == "--close-on-click") {
+			option_CloseOnClick = true;
+		}
+		else {
+			if (!rawMessage.empty()) {
+				std::cerr << "Unrecognized argument #" << i << std::endl;
+				return 1;
+			}
+			rawMessage = arg;
+		}
+	}
+	if (rawMessage.empty()) {
+		std::cerr << "No message was specified" << std::endl;
+		ShowUsage();
 		return 1;
 	}
 
@@ -31,15 +67,6 @@ int main(int argc, const char** argv)
 
 	// load the message text and convert it from multibyte to Unicode codepoints
 	std::wstring messageText = MultibyteToWideString(argv[1]);
-
-/*
-	{
-		std::wstringstream conv;
-		conv.imbue(std::locale("en_US.UTF-8"));
-		conv << argv[1];
-		messageText = conv.str();
-	}
-*/
 
 	if (0 != SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_EVENTS)) {
 		std::cerr << "Could not initialize SDL: " << SDL_GetError() << std::endl;
@@ -51,7 +78,9 @@ int main(int argc, const char** argv)
 		DEFAULT_TITLE,
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 		DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
-		SDL_WINDOW_ALLOW_HIGHDPI);
+		SDL_WINDOW_ALLOW_HIGHDPI
+			| (option_NoBorder ? SDL_WINDOW_BORDERLESS : 0)
+	);
 	if (!window) {
 		std::cerr << "Could not create window: " << SDL_GetError() << std::endl;
 		return 127;
@@ -99,16 +128,18 @@ int main(int argc, const char** argv)
 	for (int i = 0; i < messageText.size(); i++) {
 		stbtt_packedchar glyphGeometry;
 		if (font.GetGlyphGeometry(int(messageText[i]), glyphGeometry)) {
-			SDL_Rect glyphRect;
-			glyphRect.x = glyphGeometry.x0;
-			glyphRect.y = glyphGeometry.y0;
-			glyphRect.w = glyphGeometry.x1 - glyphGeometry.x0;
-			glyphRect.h = glyphGeometry.y1 - glyphGeometry.y0;
-			SDL_Rect destRect;
-			destRect.x = x + glyphGeometry.xoff;
-			destRect.y = startY + glyphGeometry.yoff;
-			destRect.w = glyphGeometry.x1 - glyphGeometry.x0;
-			destRect.h = glyphGeometry.y1 - glyphGeometry.y0;
+			SDL::Rect glyphRect(
+				glyphGeometry.x0,
+				glyphGeometry.y0,
+				glyphGeometry.x1 - glyphGeometry.x0,
+				glyphGeometry.y1 - glyphGeometry.y0
+			);
+			SDL::Rect destRect(
+				x + glyphGeometry.xoff,
+				startY + glyphGeometry.yoff,
+				glyphGeometry.x1 - glyphGeometry.x0,
+				glyphGeometry.y1 - glyphGeometry.y0
+			);
 			if (0 != SDL_BlitSurface(font.GetSurface(), &glyphRect, messageSurface, &destRect)) {
 				std::cerr << "Could not blit glyph: " << SDL_GetError() << std::endl;
 				break;
@@ -127,12 +158,27 @@ int main(int argc, const char** argv)
 
 	// the main loop: here we only need to wait for the window to be closed
 	// and re-render our message if needed
+	bool quitRequested = false;
 	SDL_Event event;
 	while (1) {
+
 		SDL_PollEvent(&event);
-		if (event.type == SDL_QUIT) {
-			break;
+		if (event.type == SDL_QUIT) {	// closing button pressed
+			quitRequested = true;
 		}
+		else if (event.type == SDL_KEYDOWN) {
+			if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+				quitRequested = true;
+			}
+		}
+		else if (event.type == SDL_MOUSEBUTTONDOWN) {
+			if (option_CloseOnClick) {
+				quitRequested = true;
+			}
+		}
+
+		if (quitRequested) break;
+
 		SDL_SetRenderDrawColor(renderer, 0x0f, 0x0f, 0x0f, 0x00);
 		SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, messageTexture, NULL, NULL);

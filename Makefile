@@ -5,7 +5,7 @@ LINKFLAGS=-lm -lSDL2
 
 EXE=sdlmessage
 
-HEADERS=MapFile.h LoadFont.h ToUnicode.h
+HEADERS=MapFile.h LoadFont.h ToUnicode.h SDLWrapper.h
 
 OBJS=Main.o MapFile.o LoadFont.o ToUnicode.o
 
