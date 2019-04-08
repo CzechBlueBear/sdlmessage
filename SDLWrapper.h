@@ -11,6 +11,24 @@
 
 namespace SDL {
 
+//---
+
+class Library
+{
+public:
+
+	Library(uint32_t initFlags = SDL_INIT_EVERYTHING);
+	Library(const Library& src) = delete;
+	~Library();
+	bool Ok() const { return ok; }
+
+private:
+
+	bool ok = false;
+};
+
+//---
+
 class Rect : public SDL_Rect
 {
 public:
@@ -36,6 +54,41 @@ public:
 		x = x_; y = y_; w = w_; h = h_;
 		return *this;
 	}
+
+	operator SDL_Rect*() { return this; }
 };
+
+//---
+
+class Surface
+{
+public:
+
+	/// Constructor, equivalent to SDL_CreateRGBSurfaceWithFormat().
+	Surface(int width, int height, int depth, uint32_t format);
+
+	Surface(const Surface& surface) = delete;
+
+	/// Destructor, calls Discard().
+	~Surface();
+
+	/// Returns true if the wrapper is valid, i.e. it has an underlying SDL object.
+	bool Ok() const { return wrapped != nullptr; }
+
+	/// Frees the wrapped object (with SDL_FreeSurface()), leaving the wrapper invalid.
+	void Discard();
+
+	/// Returns a pointer to the wrapped SDL object (null if the wrapper is invalid).
+	SDL_Surface* GetWrapped() { return wrapped; }
+
+	operator SDL_Surface*() { return wrapped; }
+
+protected:
+
+	SDL_Surface* wrapped = nullptr;
+};
+
+/// Copies (blits) a rectangle of pixels from the given surface into the target surface.
+void Blit(SDL::Surface& src, SDL::Rect& srcRect, SDL::Surface& dest, SDL::Rect& destRect);
 
 } // namespace SDL

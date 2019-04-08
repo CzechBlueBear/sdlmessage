@@ -13,6 +13,7 @@
 const char* DEFAULT_TITLE = "sdlmessage";
 const int DEFAULT_WINDOW_WIDTH = 1024;
 const int DEFAULT_WINDOW_HEIGHT = 256;
+const int DISPLAY_NUMBER = 0;
 
 std::array<const char*, 2> FONT_FILE_CANDIDATES = {
 	"/usr/share/fonts/TTF/DejaVuSans.ttf",		// Arch-ism
@@ -27,59 +28,137 @@ void ShowUsage()
 	std::cerr << "    --help             Shows this help text (also shown on unrecognized input)" << std::endl;
 	std::cerr << "    --no-border        Show a borderless window (press Esc to dismiss it)" << std::endl;
 	std::cerr << "    --close-on-click   Clicking in the window closes it" << std::endl;
+	std::cerr << "    --close-on-key     Any key causes the window to close" << std::endl;
+	std::cerr << "    --width <width>    Explicitly sets the window width" << std::endl;
+	std::cerr << "    --height <height>  Explicitly sets the window height" << std::endl;
 }
 
-int main(int argc, const char** argv)
+//---
+
+class CommandLineOptions
 {
-	bool option_NoBorder = false;
-	bool option_CloseOnClick = false;
+public:
+
+	bool ok = false;
+	bool helpShown = false;
+	bool noBorder = false;
+	bool closeOnClick = false;
+	bool closeOnKey = false;
+	int explicitWidth = -1;
+	int explicitHeight = -1;
+	std::string explicitFont;
+
+	CommandLineOptions(int argc, const char** argv);
+};
+
+//---
+
+CommandLineOptions::CommandLineOptions(int argc, const char** argv)
+{
+	// indicators what value is expected after this argument
+	bool follows_width = false;
+	bool follows_height = false;
+	bool follows_font = false;
 
 	std::string rawMessage;
 	for (int i = 1; i < argc; i++) {
 		std::string arg(argv[i]);
-		if (arg == "--help") {
-			ShowUsage();
-			return 0;
+		if (follows_width) {
+			try {
+				explicitWidth = std::stoi(arg);
+			}
+			catch (std::invalid_argument &ex) { }
+			if (explicitWidth <= 0 || explicitWidth > 16384) {
+				std::cerr << "Invalid value after the --width option" << std::endl;
+				return;
+			}
+			follows_width = false;
 		}
-		if (arg == "--no-border") {
-			option_NoBorder = true;
+		else if (follows_height) {
+			try {
+				explicitHeight = std::stoi(arg);
+			} catch (std::invalid_argument &ex) { }
+			if (explicitHeight <= 0 || explicitHeight > 16384) {
+				std::cerr << "Invalid value after the --height option" << std::endl;
+				return;
+			}
+			follows_height = false;
+		}
+		else if (follows_font) {
+			explicitFont = arg;
+		}
+		else if (arg == "--help") {
+			ShowUsage();
+			helpShown = true;
+			ok = true;
+			return;
+		}
+		else if (arg == "--no-border") {
+			noBorder = true;
 		}
 		else if (arg == "--close-on-click") {
-			option_CloseOnClick = true;
+			closeOnClick = true;
+		}
+		else if (arg == "--close-on-key") {
+			closeOnKey = true;
+		}
+		else if (arg == "--width") {
+			follows_width = true;
+		}
+		else if (arg == "--height") {
+			follows_height = true;
+		}
+		else if (arg == "--font") {
+			follows_font = true;
 		}
 		else {
 			if (!rawMessage.empty()) {
 				std::cerr << "Unrecognized argument #" << i << std::endl;
-				return 1;
+				return;
 			}
 			rawMessage = arg;
 		}
 	}
 	if (rawMessage.empty()) {
 		std::cerr << "No message was specified" << std::endl;
-		ShowUsage();
-		return 1;
+		return;
 	}
 
-	// set locale according to environment variables
-	// (important otherwise the default is C and we don't have Unicode!)
-	std::locale::global(std::locale("en_US.UTF-8")); 	/* in plain C: setlocale(LC_ALL, ""); */
+	ok = true;
+}
+
+//---
+
+int main(int argc, const char** argv)
+{
+	SDL::Library libSDL;
+	if (!libSDL.Ok()) {
+		std::cerr << "Could not initialize SDL: " << SDL_GetError() << std::endl;
+		return 127;
+	}
+
+	// set locale (important otherwise the default is C and we don't have Unicode!)
+	std::locale::global(std::locale("en_US.UTF-8"));
+
+	CommandLineOptions options(argc, argv);
+	if (options.helpShown) return 0;
+	if (!options.ok) { return 1; }
 
 	// load the message text and convert it from multibyte to Unicode codepoints
 	std::wstring messageText = MultibyteToWideString(argv[1]);
 
-	if (0 != SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_EVENTS)) {
-		std::cerr << "Could not initialize SDL: " << SDL_GetError() << std::endl;
-		atexit(SDL_Quit);
-		return 127;
-	}
+	SDL_Rect displayUsableBounds;
+	SDL_GetDisplayUsableBounds(DISPLAY_NUMBER, &displayUsableBounds);
+
+	const int windowWidth = (options.explicitWidth > 0) ? options.explicitWidth : displayUsableBounds.w/2;
+	const int windowHeight = (options.explicitHeight > 0) ? options.explicitHeight : displayUsableBounds.h/8;
 
 	SDL_Window* window = SDL_CreateWindow(
 		DEFAULT_TITLE,
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-		DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
+		windowWidth, windowHeight,
 		SDL_WINDOW_ALLOW_HIGHDPI
-			| (option_NoBorder ? SDL_WINDOW_BORDERLESS : 0)
+			| (options.noBorder ? SDL_WINDOW_BORDERLESS : 0)
 	);
 	if (!window) {
 		std::cerr << "Could not create window: " << SDL_GetError() << std::endl;
@@ -92,11 +171,16 @@ int main(int argc, const char** argv)
 		return 127;
 	}
 
-	// load the font, trying multiple usual locations
+	// load the font; if no font is given explicitly, try multiple usual locations
 	std::unique_ptr<MappedFile> fontFile;
-	for (auto candidateFile : FONT_FILE_CANDIDATES) {
-		fontFile.reset(new MappedFile(candidateFile));
-		if (fontFile->Ok()) break;
+	if (!options.explicitFont.empty()) {
+		fontFile.reset(new MappedFile(options.explicitFont.c_str()));
+	}
+	else {
+		for (auto candidateFile : FONT_FILE_CANDIDATES) {
+			fontFile.reset(new MappedFile(candidateFile));
+			if (fontFile->Ok()) break;		// candidate successful
+		}
 	}
 	if (!fontFile->Ok()) {
 		std::cerr << "Could not open font file: " << SDL_GetError() << std::endl;
@@ -109,20 +193,15 @@ int main(int argc, const char** argv)
 		return 127;
 	}
 
-	SDL_Surface* messageSurface = SDL_CreateRGBSurface(0,
-		DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
-		32,
-		0xff000000, 0x00ff0000, 0x0000ff00,
-		0x000000ff	// only alpha
-	);
-	if (!messageSurface) {
+	SDL::Surface messageSurface(windowWidth, windowHeight, 32, SDL_PIXELFORMAT_RGBA32);
+	if (!messageSurface.Ok()) {
 		std::cerr << "Could not create surface: " << SDL_GetError() << std::endl;
 		return 127;
 	}
 
 	SDL_Rect textRect = font.ComputeTextSize(messageText);
-	int startY = DEFAULT_WINDOW_HEIGHT/2 - textRect.h/2;
-	int startX = DEFAULT_WINDOW_WIDTH/2 - textRect.w/2;
+	int startX = windowWidth/2 - textRect.w/2;
+	int startY = windowHeight/2 - textRect.h/2;
 
 	int x = startX;
 	for (int i = 0; i < messageText.size(); i++) {
@@ -148,13 +227,13 @@ int main(int argc, const char** argv)
 		}
 	}
 
-	SDL_Texture* messageTexture = SDL_CreateTextureFromSurface(renderer, messageSurface);
+	SDL_Texture* messageTexture = SDL_CreateTextureFromSurface(renderer, messageSurface.GetWrapped());
 	if (!messageTexture) {
 		std::cerr << "Could not create message texture: " << SDL_GetError() << std::endl;
 		return 127;
 	}
 
-	SDL_FreeSurface(messageSurface);
+	messageSurface.Discard();
 
 	// the main loop: here we only need to wait for the window to be closed
 	// and re-render our message if needed
@@ -171,12 +250,15 @@ int main(int argc, const char** argv)
 				quitRequested = true;
 			}
 			else if (event.type == SDL_KEYDOWN) {
+				if (options.closeOnKey) {	// close on *any* key?
+					quitRequested = true;
+				}
 				if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
 					quitRequested = true;
 				}
 			}
 			else if (event.type == SDL_MOUSEBUTTONDOWN) {
-				if (option_CloseOnClick) {
+				if (options.closeOnClick) {
 					quitRequested = true;
 				}
 			}
@@ -196,42 +278,6 @@ int main(int argc, const char** argv)
 			SDL_RenderPresent(renderer);
 		}
 	}
-
-
-#if 0	// this works but is incredibly ugly
-	const SDL_MessageBoxButtonData buttons[1] = {
-		{ SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 0, "OK" }
-	};
-	const SDL_MessageBoxColorScheme colorScheme = {
-		{ /* .colors (.r, .g, .b) */
-			/* [SDL_MESSAGEBOX_COLOR_BACKGROUND] */
-			{ 128, 128, 128 },
-			/* [SDL_MESSAGEBOX_COLOR_TEXT] */
-			{ 16, 16, 16 },
-			/* [SDL_MESSAGEBOX_COLOR_BUTTON_BORDER] */
-			{ 142, 142, 142 },
-			/* [SDL_MESSAGEBOX_COLOR_BUTTON_BACKGROUND] */
-			{ 180, 180, 180 },
-			/* [SDL_MESSAGEBOX_COLOR_BUTTON_SELECTED] */
-			{ 0, 0, 0 }
-		}
-	};
-	const SDL_MessageBoxData messageboxdata = {
-		SDL_MESSAGEBOX_INFORMATION,
-		nullptr,
-		"Message",
-		messageText,
-		SDL_arraysize(buttons),
-		buttons,
-		&colorScheme
-	};
-
-	int buttonId;
-	if (SDL_ShowMessageBox(&messageboxdata, &buttonId) < 0) {
-		std::cerr << "SDL_ShowMessageBox() failed: " << SDL_GetError() << std::endl;
-		return 127;
-	}
-#endif	// this works but is incredibly ugly
 
 	return 0;
 }

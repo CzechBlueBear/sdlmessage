@@ -7,7 +7,7 @@ EXE=sdlmessage
 
 HEADERS=MapFile.h LoadFont.h ToUnicode.h SDLWrapper.h
 
-OBJS=Main.o MapFile.o LoadFont.o ToUnicode.o
+OBJS=Main.o MapFile.o LoadFont.o ToUnicode.o SDLWrapper.o
 
 .PHONY: all clean
 
