@@ -49,9 +49,42 @@ void Surface::Discard()
 
 //---
 
-void Blit(SDL::Surface& src, SDL::Rect& srcRect, SDL::Surface& dest, SDL::Rect& destRect)
+bool Surface::Blit(const SDL::Rect& rect, SDL::Surface& dest, SDL::Rect& destRect) const
 {
-	SDL_BlitSurface(src.GetWrapped(), srcRect, dest.GetWrapped(), destRect);
+	return (0 == SDL_BlitSurface(wrapped, rect, dest.GetWrapped(), destRect));
+}
+
+//---
+
+Texture::Texture(SDL_Renderer* renderer, Surface& src)
+{
+	wrapped = SDL_CreateTextureFromSurface(renderer, src.GetWrapped());
+}
+
+//---
+
+Texture::~Texture()
+{
+	if (wrapped) {
+		SDL_DestroyTexture(wrapped);
+		wrapped = nullptr;
+	}
+}
+
+//---
+
+Renderer::Renderer(SDL_Window* window, int index, uint32_t flags)
+{
+	wrapped = SDL_CreateRenderer(window, index, flags);
+}
+
+//---
+
+Renderer::~Renderer()
+{
+	if (wrapped) {
+		SDL_DestroyRenderer(wrapped);
+	}
 }
 
 } // namespace SDL

@@ -31,6 +31,7 @@ void ShowUsage()
 	std::cerr << "    --close-on-key     Any key causes the window to close" << std::endl;
 	std::cerr << "    --width <width>    Explicitly sets the window width" << std::endl;
 	std::cerr << "    --height <height>  Explicitly sets the window height" << std::endl;
+	std::cerr << "    --font <path>      Complete path to font to use" << std::endl;
 }
 
 //---
@@ -165,8 +166,8 @@ int main(int argc, const char** argv)
 		return 127;
 	}
 
-	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, 0);
-	if (!renderer) {
+	SDL::Renderer renderer(window, -1, 0);
+	if (!renderer.Ok()) {
 		std::cerr << "Could not create renderer: " << SDL_GetError() << std::endl;
 		return 127;
 	}
@@ -219,7 +220,7 @@ int main(int argc, const char** argv)
 				glyphGeometry.x1 - glyphGeometry.x0,
 				glyphGeometry.y1 - glyphGeometry.y0
 			);
-			if (0 != SDL_BlitSurface(font.GetSurface(), &glyphRect, messageSurface, &destRect)) {
+			if (!font.GetSurface().Blit(glyphRect, messageSurface, destRect)) {
 				std::cerr << "Could not blit glyph: " << SDL_GetError() << std::endl;
 				break;
 			}
@@ -227,8 +228,8 @@ int main(int argc, const char** argv)
 		}
 	}
 
-	SDL_Texture* messageTexture = SDL_CreateTextureFromSurface(renderer, messageSurface.GetWrapped());
-	if (!messageTexture) {
+	SDL::Texture messageTexture(renderer, messageSurface);
+	if (!messageTexture.Ok()) {
 		std::cerr << "Could not create message texture: " << SDL_GetError() << std::endl;
 		return 127;
 	}

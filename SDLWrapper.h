@@ -56,11 +56,38 @@ public:
 	}
 
 	operator SDL_Rect*() { return this; }
+	operator SDL_Rect const*() const { return this; }
 };
 
 //---
 
-class Surface
+/// Base class for objects that wrap another object using its pointer.
+template<class T>
+class PtrWrapper
+{
+public:
+
+	/// Returns a pointer to the wrapped object (null if the wrapper is invalid).
+	T* GetWrapped() { return wrapped; }
+
+	/// Const-variant of GetWrapped().
+	const T* GetWrapped() const { return wrapped; }
+
+	/// For automatical unwrapping when passing to a function that expects the pointer to the underlying object.
+	operator T*() { return wrapped; }
+
+	/// Const-variant of operator T*().
+	operator const T*() { return wrapped; }
+
+protected:
+
+	/// Pointer to the wrapped object.
+	T* wrapped = nullptr;
+};
+
+//---
+
+class Surface : public PtrWrapper<SDL_Surface>
 {
 public:
 
@@ -78,17 +105,36 @@ public:
 	/// Frees the wrapped object (with SDL_FreeSurface()), leaving the wrapper invalid.
 	void Discard();
 
-	/// Returns a pointer to the wrapped SDL object (null if the wrapper is invalid).
-	SDL_Surface* GetWrapped() { return wrapped; }
+	SDL_PixelFormat* GetFormat() const { return wrapped ? wrapped->format : nullptr; }
+	void* GetPixels() { return wrapped ? wrapped->pixels : 0; }
+	int GetWidth() const { return wrapped ? wrapped->w : 0; }
+	int GetHeight() const { return wrapped ? wrapped->h : 0; }
+	int GetPitch() const { return wrapped ? wrapped->pitch : 0; }
 
-	operator SDL_Surface*() { return wrapped; }
-
-protected:
-
-	SDL_Surface* wrapped = nullptr;
+	/// Blits a rectangle of pixels from this surface to the target surface.
+	bool Blit(const SDL::Rect& srcRect, SDL::Surface& dest, SDL::Rect& destRect) const;
 };
 
-/// Copies (blits) a rectangle of pixels from the given surface into the target surface.
-void Blit(SDL::Surface& src, SDL::Rect& srcRect, SDL::Surface& dest, SDL::Rect& destRect);
+//---
+
+class Texture : public PtrWrapper<SDL_Texture>
+{
+public:
+
+	Texture(SDL_Renderer* renderer, Surface& src);
+	~Texture();
+	bool Ok() const { return (wrapped != nullptr); }
+};
+
+//---
+
+class Renderer : public PtrWrapper<SDL_Renderer>
+{
+public:
+
+	Renderer(SDL_Window* window, int index, uint32_t flags);
+	~Renderer();
+	bool Ok() const { return (wrapped != nullptr); }
+};
 
 } // namespace SDL

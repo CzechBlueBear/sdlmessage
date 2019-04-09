@@ -1,8 +1,9 @@
 #pragma once
 
 #include <string>
+#include <memory>
 
-#include "SDL.h"
+#include "SDLWrapper.h"
 #include "MapFile.h"
 
 #include "stb_truetype.h"
@@ -20,18 +21,16 @@ public:
 	bool GetGlyphRect(int charCode, SDL_Rect& glyphRect) const;
 	bool GetGlyphGeometry(int charCode, stbtt_packedchar &glyphGeometry) const;
 
-	/**
-	 * Returns a pointer to the internal surface that holds the glyphs.
-	 * Use GetGlyphGeometry() to find out coordinates of a glyph image in this surface.
-	 */
-	SDL_Surface* GetSurface() { return fontSurface; }
+	/// Returns the internal surface that holds the glyphs.
+	/// Use GetGlyphGeometry() to find out coordinates of a glyph image in this surface.
+	SDL::Surface& GetSurface() { return *(fontSurface.get()); }
 
 	SDL_Rect ComputeTextSize(const std::wstring &text);
 
 private:
 
 	bool ok = false;
-	SDL_Surface* fontSurface = nullptr;
+	std::unique_ptr<SDL::Surface> fontSurface = nullptr;
 	stbtt_fontinfo fontInfo = { 0 };
 	stbtt_packedchar packedChars[NUMBER_OF_CHARS];
 };

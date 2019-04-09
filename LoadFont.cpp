@@ -7,12 +7,11 @@
 
 Font::Font(const MappedFile &fontFile, float fontSize)
 {
-	fontSurface = SDL_CreateRGBSurface(
-		0,
+	fontSurface = std::make_unique<SDL::Surface>(
 		DEFAULT_FONT_SURFACE_WIDTH, DEFAULT_FONT_SURFACE_HEIGHT,
-		8, 0, 0, 0, 0
+		8, SDL_PIXELFORMAT_INDEX8
 	);
-	if (!fontSurface) {
+	if (!fontSurface->Ok()) {
 		SDL_SetError("Could not create surface: %s", SDL_GetError());
 		return;
 	}
@@ -24,7 +23,7 @@ Font::Font(const MappedFile &fontFile, float fontSize)
 		colorRamp[i].b = i;
 		colorRamp[i].a = 255;
 	}
-	SDL_SetPaletteColors(fontSurface->format->palette, colorRamp, 0, 256);
+	SDL_SetPaletteColors(fontSurface->GetFormat()->palette, colorRamp, 0, 256);
 
 	if (!stbtt_InitFont(&fontInfo, fontFile.GetData(), 0)) { /*stbtt_GetFontOffsetForIndex(fontFile.GetData(), 0) */
 		SDL_SetError("stbtt_InitFont() failed");
@@ -34,8 +33,8 @@ Font::Font(const MappedFile &fontFile, float fontSize)
 	stbtt_pack_context packContext = { 0 };
 	if (!stbtt_PackBegin(
 		&packContext,
-		static_cast<uint8_t*>(fontSurface->pixels),
-		fontSurface->w, fontSurface->h, fontSurface->pitch,
+		static_cast<uint8_t*>(fontSurface->GetPixels()),
+		fontSurface->GetWidth(), fontSurface->GetHeight(), fontSurface->GetPitch(),
 		1, nullptr)
 	) {
 		SDL_SetError("stbtt_PackBegin() failed");
@@ -59,10 +58,6 @@ Font::Font(const MappedFile &fontFile, float fontSize)
 Font::~Font()
 {
 	ok = false;
-	if (fontSurface) {
-		SDL_FreeSurface(fontSurface);
-		fontSurface = nullptr;
-	}
 }
 
 bool Font::GetGlyphRect(int charCode, SDL_Rect& result) const
