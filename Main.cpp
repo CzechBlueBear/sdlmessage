@@ -22,8 +22,9 @@ std::array<const char*, 2> FONT_FILE_CANDIDATES = {
 
 void ShowUsage()
 {
-	std::cerr << "sdlmessage [options] message" << std::endl << std::endl;
-	std::cerr << "Shows a short, single-line message in a window and waits for the window to be closed." << std::endl;
+	std::cerr << "Usage:" << std::endl;
+	std::cerr << "    sdlmessage [options] message" << std::endl << std::endl;
+	std::cerr << "Shows a short, single-line message in a window and waits for the window to be closed." << std::endl << std::endl;
 	std::cerr << "Options:" << std::endl;
 	std::cerr << "    --help             Shows this help text (also shown on unrecognized input)" << std::endl;
 	std::cerr << "    --no-border        Show a borderless window (press Esc to dismiss it)" << std::endl;
@@ -47,6 +48,8 @@ public:
 	bool closeOnKey = false;
 	int explicitWidth = -1;
 	int explicitHeight = -1;
+	int windowX = -1;
+	int windowY = -1;
 	std::string explicitFont;
 
 	CommandLineOptions(int argc, const char** argv);
@@ -54,39 +57,63 @@ public:
 
 //---
 
+enum class ValueExpected {
+	kNone = 0,
+
+	// numeric values
+	kWindowX = 1,
+	kWindowY,
+	kWindowWidth,
+	kWindowHeight,
+
+	// string values
+	kFont = 100
+};
+
 CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 {
-	// indicators what value is expected after this argument
-	bool follows_width = false;
-	bool follows_height = false;
-	bool follows_font = false;
+	// what value is expected after this argument
+	auto expected = ValueExpected::kNone;
 
 	std::string rawMessage;
 	for (int i = 1; i < argc; i++) {
 		std::string arg(argv[i]);
-		if (follows_width) {
-			try {
-				explicitWidth = std::stoi(arg);
+		if (expected != ValueExpected::kNone) {
+			if (expected == ValueExpected::kFont) {
+				explicitFont = arg;
 			}
-			catch (std::invalid_argument &ex) { }
-			if (explicitWidth <= 0 || explicitWidth > 16384) {
-				std::cerr << "Invalid value after the --width option" << std::endl;
-				return;
+			else {
+				try {
+					int value = std::stoi(arg);
+					switch (expected) {
+						case ValueExpected::kWindowX:
+							windowX = value;
+							break;
+						case ValueExpected::kWindowY:
+							windowY = value;
+							break;
+						case ValueExpected::kWindowWidth:
+							if (value <= 0 || value > 16384) {
+								std::cerr << "error: window width out of bounds" << std::endl;
+								return;
+							}
+							explicitWidth = value;
+							break;
+						case ValueExpected::kWindowHeight:
+							explicitHeight = value;
+							if (value <= 0 || value > 16384) {
+								std::cerr << "error: window height out of bounds" << std::endl;
+								return;
+							}
+							break;
+					}
+				}
+				catch (std::invalid_argument &ex) {
+					std::cerr << "error: invalid numeric value as command-line argument #" << i << std::endl;
+					return;
+				}
 			}
-			follows_width = false;
-		}
-		else if (follows_height) {
-			try {
-				explicitHeight = std::stoi(arg);
-			} catch (std::invalid_argument &ex) { }
-			if (explicitHeight <= 0 || explicitHeight > 16384) {
-				std::cerr << "Invalid value after the --height option" << std::endl;
-				return;
-			}
-			follows_height = false;
-		}
-		else if (follows_font) {
-			explicitFont = arg;
+			expected = ValueExpected::kNone;
 		}
 		else if (arg == "--help") {
 			ShowUsage();
@@ -103,25 +130,31 @@ CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 		else if (arg == "--close-on-key") {
 			closeOnKey = true;
 		}
+		else if (arg == "--x") {
+			expected = ValueExpected::kWindowX;
+		}
+		else if (arg == "--y") {
+			expected = ValueExpected::kWindowY;
+		}
 		else if (arg == "--width") {
-			follows_width = true;
+			expected = ValueExpected::kWindowWidth;
 		}
 		else if (arg == "--height") {
-			follows_height = true;
+			expected = ValueExpected::kWindowHeight;
 		}
 		else if (arg == "--font") {
-			follows_font = true;
+			expected = ValueExpected::kFont;
 		}
 		else {
 			if (!rawMessage.empty()) {
-				std::cerr << "Unrecognized argument #" << i << std::endl;
+				std::cerr << "error: unrecognized argument #" << i << std::endl;
 				return;
 			}
 			rawMessage = arg;
 		}
 	}
 	if (rawMessage.empty()) {
-		std::cerr << "No message was specified" << std::endl;
+		std::cerr << "error: no message was specified" << std::endl;
 		return;
 	}
 
@@ -134,7 +167,7 @@ int main(int argc, const char** argv)
 {
 	SDL::Library libSDL;
 	if (!libSDL.Ok()) {
-		std::cerr << "Could not initialize SDL: " << SDL_GetError() << std::endl;
+		std::cerr << "error: could not initialize SDL: " << SDL_GetError() << std::endl;
 		return 127;
 	}
 
@@ -143,7 +176,7 @@ int main(int argc, const char** argv)
 
 	CommandLineOptions options(argc, argv);
 	if (options.helpShown) return 0;
-	if (!options.ok) { return 1; }
+	if (!options.ok) { ShowUsage(); return 1; }
 
 	// load the message text and convert it from multibyte to Unicode codepoints
 	std::wstring messageText = MultibyteToWideString(argv[1]);
@@ -156,7 +189,8 @@ int main(int argc, const char** argv)
 
 	SDL_Window* window = SDL_CreateWindow(
 		DEFAULT_TITLE,
-		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+		(options.windowX >= 0 ? options.windowX : SDL_WINDOWPOS_CENTERED),
+		(options.windowY >= 0 ? options.windowY : SDL_WINDOWPOS_CENTERED),
 		windowWidth, windowHeight,
 		SDL_WINDOW_ALLOW_HIGHDPI
 			| (options.noBorder ? SDL_WINDOW_BORDERLESS : 0)
