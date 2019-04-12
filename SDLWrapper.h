@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <optional>
+#include <functional>
 
 namespace SDL {
 
@@ -142,6 +143,39 @@ public:
 
 	Renderer(SDL_Window* window, int index, uint32_t flags);
 	~Renderer();
+};
+
+//---
+
+/// Wraps SDL_Timer, allows to use a C++ lambda as the payload function.
+class Timer
+{
+public:
+
+	enum class Type {
+		kOneShot = 0,	///< Triggered only once.
+		kRepeated = 1	///< Triggered repeatedly in specified intervals.
+	};
+
+	Timer(Timer::Type type, uint32_t interval, std::function<void(void)> payload);
+	Timer(const Timer &src) = delete;
+	~Timer();
+
+protected:
+
+	/// ID of the SDL timer.
+	SDL_TimerID timerId = 0;
+
+	/// SDL callback that ensures calling our payload function.
+	static uint32_t CallPayload(uint32_t interval, void* indirectThis);
+
+	/// The interval set in the constructor.
+	uint32_t interval = 0;
+
+	Timer::Type type;
+
+	/// The payload, called when the timer elapses (probably in a different thread).
+	std::function<void(void)> payload;
 };
 
 } // namespace SDL

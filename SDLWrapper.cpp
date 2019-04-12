@@ -87,4 +87,43 @@ Renderer::~Renderer()
 	}
 }
 
+//---
+
+Timer::Timer(Type type_, uint32_t interval_, std::function<void(void)> payload_)
+	: type(type_), interval(interval_), payload(payload_)
+{
+	timerId = SDL_AddTimer(interval, CallPayload, this);
+}
+
+//---
+
+Timer::~Timer()
+{
+	SDL_RemoveTimer(timerId);
+}
+
+//---
+
+uint32_t Timer::CallPayload(uint32_t timePassed, void* indirectThis)
+{
+	Timer* theThis = reinterpret_cast<Timer*>(indirectThis);
+
+	theThis->payload();
+
+	if (theThis->type == Timer::Type::kOneShot) {
+
+		// do not call multiple times
+		return 0;
+	}
+	else {
+
+		// how much we are delayed in comparison with the interval
+		// (positive - we are delayed, negative - we are earlier)
+		int32_t delay = timePassed - theThis->interval;
+
+		// schedule next call, trying to compensate for delays
+		return uint32_t(int32_t(theThis->interval) - delay);
+	}
+}
+
 } // namespace SDL

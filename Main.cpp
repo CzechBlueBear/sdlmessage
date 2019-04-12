@@ -178,24 +178,6 @@ CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 
 //---
 
-Uint32 ClosingTimerCallback(Uint32 interval, void *param)
-{
-    // push a USEREVENT to the event queue
-    SDL_Event event;
-    event.type = SDL_USEREVENT;
-    SDL_UserEvent& userevent = event.user;
-    userevent.type = SDL_USEREVENT;
-    userevent.code = 0;
-    userevent.data1 = NULL;
-    userevent.data2 = NULL;
-    SDL_PushEvent(&event);
-
-    // this is a one-time triggered callback
-    return 0;
-}
-
-//---
-
 int main(int argc, const char** argv)
 {
 	SDL::Library libSDL;
@@ -304,8 +286,18 @@ int main(int argc, const char** argv)
 	messageSurface.Discard();
 
 	// install timer for closing after specified time
+	std::unique_ptr<SDL::Timer> closingTimer;
 	if (options.closingDelay > 0) {
-		SDL_TimerID closingTimerId = SDL_AddTimer(options.closingDelay, ClosingTimerCallback, nullptr);
+		closingTimer.reset(new SDL::Timer(SDL::Timer::Type::kOneShot, options.closingDelay, []{
+		    SDL_Event event;
+		    event.type = SDL_USEREVENT;
+		    SDL_UserEvent& userevent = event.user;
+		    userevent.type = SDL_USEREVENT;
+		    userevent.code = 0;
+		    userevent.data1 = NULL;
+		    userevent.data2 = NULL;
+		    SDL_PushEvent(&event);
+		}));
 	}
 
 	// the main loop: here we only need to wait for the window to be closed
