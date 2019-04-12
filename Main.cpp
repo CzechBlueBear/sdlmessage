@@ -20,6 +20,8 @@ std::array<const char*, 2> FONT_FILE_CANDIDATES = {
 	"/usr/share/fonts/dejavu/DejaVuSans.ttf"	// Fedora
 };
 
+//---
+
 void ShowUsage()
 {
 	std::cerr << "Usage:" << std::endl;
@@ -27,12 +29,15 @@ void ShowUsage()
 	std::cerr << "Shows a short, single-line message in a window and waits for the window to be closed." << std::endl << std::endl;
 	std::cerr << "Options:" << std::endl;
 	std::cerr << "    --help             Shows this help text (also shown on unrecognized input)" << std::endl;
+	std::cerr << "    --x                X coordinate of the window" << std::endl;
+	std::cerr << "    --y                Y coordinate of the window" << std::endl;
 	std::cerr << "    --no-border        Show a borderless window (press Esc to dismiss it)" << std::endl;
-	std::cerr << "    --close-on-click   Clicking in the window closes it" << std::endl;
-	std::cerr << "    --close-on-key     Any key causes the window to close" << std::endl;
 	std::cerr << "    --width <width>    Explicitly sets the window width" << std::endl;
 	std::cerr << "    --height <height>  Explicitly sets the window height" << std::endl;
 	std::cerr << "    --font <path>      Complete path to font to use" << std::endl;
+	std::cerr << "    --close-on-click   Clicking in the window closes it" << std::endl;
+	std::cerr << "    --close-on-key     Any key causes the window to close" << std::endl;
+	std::cerr << "    --close-after      Close automatically after given number of milliseconds" << std::endl;
 }
 
 //---
@@ -50,6 +55,7 @@ public:
 	int explicitHeight = -1;
 	int windowX = -1;
 	int windowY = -1;
+	int32_t closingDelay = -1;
 	std::string explicitFont;
 
 	CommandLineOptions(int argc, const char** argv);
@@ -65,10 +71,13 @@ enum class ValueExpected {
 	kWindowY,
 	kWindowWidth,
 	kWindowHeight,
+	kClosingDelay,
 
 	// string values
 	kFont = 100
 };
+
+//---
 
 CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 {
@@ -106,6 +115,9 @@ CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 								return;
 							}
 							break;
+						case ValueExpected::kClosingDelay:
+							closingDelay = value;
+							break;
 					}
 				}
 				catch (std::invalid_argument &ex) {
@@ -129,6 +141,9 @@ CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 		}
 		else if (arg == "--close-on-key") {
 			closeOnKey = true;
+		}
+		else if (arg == "--close-after") {
+			expected = ValueExpected::kClosingDelay;
 		}
 		else if (arg == "--x") {
 			expected = ValueExpected::kWindowX;
@@ -159,6 +174,24 @@ CommandLineOptions::CommandLineOptions(int argc, const char** argv)
 	}
 
 	ok = true;
+}
+
+//---
+
+Uint32 ClosingTimerCallback(Uint32 interval, void *param)
+{
+    // push a USEREVENT to the event queue
+    SDL_Event event;
+    event.type = SDL_USEREVENT;
+    SDL_UserEvent& userevent = event.user;
+    userevent.type = SDL_USEREVENT;
+    userevent.code = 0;
+    userevent.data1 = NULL;
+    userevent.data2 = NULL;
+    SDL_PushEvent(&event);
+
+    // this is a one-time triggered callback
+    return 0;
 }
 
 //---
@@ -270,6 +303,11 @@ int main(int argc, const char** argv)
 
 	messageSurface.Discard();
 
+	// install timer for closing after specified time
+	if (options.closingDelay > 0) {
+		SDL_TimerID closingTimerId = SDL_AddTimer(options.closingDelay, ClosingTimerCallback, nullptr);
+	}
+
 	// the main loop: here we only need to wait for the window to be closed
 	// and re-render our message if needed
 	bool quitRequested = false;
@@ -301,6 +339,11 @@ int main(int argc, const char** argv)
 				if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
 					redrawNeeded = true;
 				}
+			}
+			else if (event.type == SDL_USEREVENT) {
+
+				// after timer elapses, finish
+				quitRequested = true;
 			}
 		} while (SDL_PollEvent(&event));
 

@@ -13,7 +13,16 @@ namespace SDL {
 
 //---
 
-class Library
+class OkAble
+{
+public:
+
+	virtual bool Ok() const = 0;
+};
+
+//---
+
+class Library : public virtual OkAble
 {
 public:
 
@@ -63,7 +72,7 @@ public:
 
 /// Base class for objects that wrap another object using its pointer.
 template<class T>
-class PtrWrapper
+class PtrWrapper : public virtual OkAble
 {
 public:
 
@@ -79,9 +88,12 @@ public:
 	/// Const-variant of operator T*().
 	operator const T*() { return wrapped; }
 
+	/// Basic implementation of Ok(), checks whether the wrapped object exists.
+	bool Ok() const { return (wrapped != nullptr); }
+
 protected:
 
-	/// Pointer to the wrapped object.
+	/// Pointer to the wrapped object (plain pointer as it usually needs special allocation/freeing calls anyway).
 	T* wrapped = nullptr;
 };
 
@@ -98,9 +110,6 @@ public:
 
 	/// Destructor, calls Discard().
 	~Surface();
-
-	/// Returns true if the wrapper is valid, i.e. it has an underlying SDL object.
-	bool Ok() const { return wrapped != nullptr; }
 
 	/// Frees the wrapped object (with SDL_FreeSurface()), leaving the wrapper invalid.
 	void Discard();
@@ -123,7 +132,6 @@ public:
 
 	Texture(SDL_Renderer* renderer, Surface& src);
 	~Texture();
-	bool Ok() const { return (wrapped != nullptr); }
 };
 
 //---
@@ -134,7 +142,6 @@ public:
 
 	Renderer(SDL_Window* window, int index, uint32_t flags);
 	~Renderer();
-	bool Ok() const { return (wrapped != nullptr); }
 };
 
 } // namespace SDL
