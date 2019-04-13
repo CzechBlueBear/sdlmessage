@@ -39,6 +39,34 @@ private:
 
 //---
 
+class EventLoop
+{
+public:
+
+	EventLoop(Library &libSDL_);
+	~EventLoop();
+	void Run();
+
+	/// Pushes a user event (with user-defined meaning) to the event stream.
+	void PushUserEvent(int code, void* data1 = nullptr, void* data2 = nullptr);
+
+	/// Flag to set to true to leave Run().
+	bool quitRequested = false;
+
+	std::function<void(void)> OnRedraw;
+	std::function<void(const SDL_KeyboardEvent&)> OnKey;
+	std::function<void(const SDL_MouseMotionEvent&)> OnMouseMotion;
+	std::function<void(const SDL_MouseButtonEvent&)> OnMouseButton;
+	std::function<void(const SDL_UserEvent&)> OnUserEvent;
+	std::function<void(int, int)> OnWindowResized;
+
+protected:
+
+	Library &libSDL;
+};
+
+//---
+
 class Rect : public SDL_Rect
 {
 public:

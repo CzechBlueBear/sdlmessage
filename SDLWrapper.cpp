@@ -21,6 +21,83 @@ Library::~Library()
 
 //---
 
+EventLoop::EventLoop(Library &libSDL_)
+	: libSDL(libSDL_)
+{
+}
+
+//---
+
+EventLoop::~EventLoop()
+{
+}
+
+//---
+
+void EventLoop::Run()
+{
+	bool redrawNeeded = false;
+	bool haveEvent = false;
+	SDL_Event event;
+	while (1) {
+
+		// wait for any incoming events, then handle the whole batch
+		SDL_WaitEvent(&event);
+		do {
+			if (event.type == SDL_QUIT) {	// closing button pressed
+				quitRequested = true;
+			}
+			else if (event.type == SDL_KEYDOWN) {
+				if (OnKey)
+					OnKey(event.key);
+			}
+			else if (event.type == SDL_MOUSEBUTTONDOWN) {
+				if (OnMouseButton)
+					OnMouseButton(event.button);
+			}
+			else if (event.type == SDL_MOUSEMOTION) {
+				if (OnMouseMotion)
+					OnMouseMotion(event.motion);
+			}
+			else if (event.type == SDL_WINDOWEVENT) {
+				if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+					redrawNeeded = true;
+				}
+				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+					if (OnWindowResized)
+						OnWindowResized(int(event.window.data1), int(event.window.data2));
+				}
+			}
+			else if (event.type == SDL_USEREVENT) {
+				if (OnUserEvent)
+					OnUserEvent(event.user);
+			}
+		} while (SDL_PollEvent(&event));
+
+		if (quitRequested) break;
+
+		if (redrawNeeded) {
+			OnRedraw();
+		}
+	}
+}
+
+//---
+
+void EventLoop::PushUserEvent(int code, void* data1, void* data2)
+{
+	SDL_Event event;
+	event.type = SDL_USEREVENT;
+	SDL_UserEvent& userevent = event.user;
+	userevent.type = SDL_USEREVENT;
+	userevent.code = code;
+	userevent.data1 = data1;
+	userevent.data2 = data2;
+	SDL_PushEvent(&event);
+}
+
+//---
+
 Surface::Surface(int width, int height, int depth, uint32_t format)
 {
 	if (width < 0 || height < 0 || depth < 0) {

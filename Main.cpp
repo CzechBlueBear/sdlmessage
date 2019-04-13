@@ -285,69 +285,41 @@ int main(int argc, const char** argv)
 
 	messageSurface.Discard();
 
-	// install timer for closing after specified time
+	SDL::EventLoop eventLoop(libSDL);
+
+	// install timer for closing after specified time; it sends a UserEvent we then catch in the event loop
 	std::unique_ptr<SDL::Timer> closingTimer;
 	if (options.closingDelay > 0) {
-		closingTimer.reset(new SDL::Timer(SDL::Timer::Type::kOneShot, options.closingDelay, []{
-		    SDL_Event event;
-		    event.type = SDL_USEREVENT;
-		    SDL_UserEvent& userevent = event.user;
-		    userevent.type = SDL_USEREVENT;
-		    userevent.code = 0;
-		    userevent.data1 = NULL;
-		    userevent.data2 = NULL;
-		    SDL_PushEvent(&event);
+		closingTimer.reset(new SDL::Timer(SDL::Timer::Type::kOneShot, options.closingDelay, [&eventLoop]{
+			eventLoop.PushUserEvent(0);
 		}));
-	}
+	};
 
-	// the main loop: here we only need to wait for the window to be closed
-	// and re-render our message if needed
-	bool quitRequested = false;
-	bool redrawNeeded = false;
-	bool haveEvent = false;
-	SDL_Event event;
-	while (1) {
-
-		// wait for any incoming events, then handle the whole batch
-		SDL_WaitEvent(&event);
-		do {
-			if (event.type == SDL_QUIT) {	// closing button pressed
-				quitRequested = true;
-			}
-			else if (event.type == SDL_KEYDOWN) {
-				if (options.closeOnKey) {	// close on *any* key?
-					quitRequested = true;
-				}
-				if (event.key.keysym.scancode == SDL_SCANCODE_ESCAPE) {
-					quitRequested = true;
-				}
-			}
-			else if (event.type == SDL_MOUSEBUTTONDOWN) {
-				if (options.closeOnClick) {
-					quitRequested = true;
-				}
-			}
-			else if (event.type == SDL_WINDOWEVENT) {
-				if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-					redrawNeeded = true;
-				}
-			}
-			else if (event.type == SDL_USEREVENT) {
-
-				// after timer elapses, finish
-				quitRequested = true;
-			}
-		} while (SDL_PollEvent(&event));
-
-		if (quitRequested) break;
-
-		if (redrawNeeded) {
-			SDL_SetRenderDrawColor(renderer, 0x0f, 0x0f, 0x0f, 0x00);
-			SDL_RenderClear(renderer);
-			SDL_RenderCopy(renderer, messageTexture, NULL, NULL);
-			SDL_RenderPresent(renderer);
+	eventLoop.OnRedraw = [&renderer, &messageTexture](){
+		SDL_SetRenderDrawColor(renderer, 0x0f, 0x0f, 0x0f, 0x00);
+		SDL_RenderClear(renderer);
+		SDL_RenderCopy(renderer, messageTexture, NULL, NULL);
+		SDL_RenderPresent(renderer);
+	};
+	eventLoop.OnKey = [&eventLoop, options](const SDL_KeyboardEvent &event) {
+		if (options.closeOnKey) {	// close on *any* key?
+			eventLoop.quitRequested = true;
 		}
-	}
+		if (event.keysym.scancode == SDL_SCANCODE_ESCAPE) {
+			eventLoop.quitRequested = true;
+		}
+	};
+	eventLoop.OnMouseButton = [&eventLoop, options](const SDL_MouseButtonEvent &event) {
+		if (options.closeOnClick) {
+			eventLoop.quitRequested = true;
+		}
+	};
+	eventLoop.OnUserEvent = [&eventLoop](const SDL_UserEvent& event) {
+
+		// quit when we receive the user event sent by the timer
+		eventLoop.quitRequested = true;
+	};
+	eventLoop.Run();
 
 	return 0;
 }
