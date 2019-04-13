@@ -237,7 +237,7 @@ int main(int argc, const char** argv)
 		return 127;
 	}
 
-	Font font(*fontFile, 32.0f);
+	Font font(*fontFile, 32.0f, Font::kCharsetCyrillic|Font::kCharsetGreek);
 	if (!font.Ok()) {
 		std::cerr << "Could not load font: " << SDL_GetError() << std::endl;
 		return 127;

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 
 #include "SDLWrapper.h"
 #include "MapFile.h"
@@ -11,11 +12,11 @@
 class Font {
 public:
 
-	static const int NUMBER_OF_CHARS = 0x1ff;
-	static const int DEFAULT_FONT_SURFACE_WIDTH = 2048;
-	static const int DEFAULT_FONT_SURFACE_HEIGHT = 512;
+	static const uint32_t kCharsetLatin = 0x1;
+	static const uint32_t kCharsetCyrillic = 0x2;
+	static const uint32_t kCharsetGreek = 0x4;
 
-	Font(const MappedFile &fontFile, float fontSize);
+	Font(const MappedFile &fontFile, float fontSize, uint32_t extraCharsetSupport = 0);
 	~Font();
 	bool Ok() const { return ok; }
 	bool GetGlyphRect(int charCode, SDL_Rect& glyphRect) const;
@@ -29,8 +30,15 @@ public:
 
 private:
 
+	const stbtt_packedchar* GetPackedChar(int charCode) const;
+
+	uint32_t encodedCharsets = 0;
 	bool ok = false;
+	int encodedCharCount = 0;
 	std::unique_ptr<SDL::Surface> fontSurface = nullptr;
 	stbtt_fontinfo fontInfo = { 0 };
-	stbtt_packedchar packedChars[NUMBER_OF_CHARS];
+	std::vector<stbtt_pack_range> packedCharRanges;
+	std::array<stbtt_packedchar, 767> packedCharsBasic;
+	std::array<stbtt_packedchar, 256> packedCharsCyrillic;
+	std::array<stbtt_packedchar, 143> packedCharsGreek;
 };
